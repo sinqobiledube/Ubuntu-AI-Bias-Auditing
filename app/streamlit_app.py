@@ -11,9 +11,12 @@ from pathlib import Path
 
 # Allow running `streamlit run app/streamlit_app.py` straight from a repo clone
 # without requiring `pip install -e .` first.
-SRC_DIR = Path(__file__).resolve().parent.parent / "src"
+_APP_DIR = Path(__file__).resolve().parent
+SRC_DIR = _APP_DIR.parent / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
+if str(_APP_DIR) not in sys.path:
+    sys.path.insert(0, str(_APP_DIR))
 
 import numpy as np
 import pandas as pd
@@ -45,7 +48,15 @@ from dat_framework.optimization.pareto import (
 )
 from dat_framework.optimization.preprocessing import assign_intersectional_subgroups
 
-st.set_page_config(page_title="DAT Framework — Ubuntu Fairness", layout="wide", page_icon="🌍")
+from ui_icons import icon_html
+
+_FAVICON = _APP_DIR / "assets" / "favicon.svg"
+
+st.set_page_config(
+    page_title="DAT Framework — Ubuntu Fairness",
+    layout="wide",
+    page_icon=str(_FAVICON),
+)
 
 # ---------------------------------------------------------------------------
 # Theme — earthy Ubuntu-inspired palette (deep teal + gold), consistent
@@ -60,19 +71,112 @@ PALETTE = {
     "bg": "#F7F5F0",
     "card": "#FFFFFF",
     "text": "#20302B",
-    "muted": "#6B7A75",
+    "muted": "#4A5854",       # WCAG-friendly on #F7F5F0 (was too faint at #6B7A75)
     "colorway": ["#0F6E63", "#D98E2E", "#1E8449", "#C0392B", "#5B84B1", "#8E5572"],
 }
+
+NAV_SECTIONS = (
+    {
+        "id": "data",
+        "label": "Data & context",
+        "icon": ":material/database:",
+        "description": "Synthetic cohort preview, attribute prevalence, and live World Bank indicators.",
+    },
+    {
+        "id": "diagnostics",
+        "label": "Bias diagnostics",
+        "icon": ":material/search:",
+        "description": "Single-attribute vs intersectional metrics — the mirage of neutrality.",
+    },
+    {
+        "id": "statistics",
+        "label": "Statistics",
+        "icon": ":material/bar_chart:",
+        "description": "t-tests, factorial ANOVA, and non-additivity spotlight.",
+    },
+    {
+        "id": "moo",
+        "label": "MOO framework",
+        "icon": ":material/tune:",
+        "description": "Tier 1–3 DAT workflow: mapping, optimization sweep, and Pareto governance.",
+    },
+)
+_NAV_BY_ID = {section["id"]: section for section in NAV_SECTIONS}
 
 st.markdown(
     f"""
     <style>
-    html, body, [class*="css"] {{
+    :root {{
+        --dat-text: {PALETTE['text']};
+        --dat-text-muted: {PALETTE['muted']};
+        --dat-bg: {PALETTE['bg']};
+        --dat-card: {PALETTE['card']};
+        --dat-primary: {PALETTE['primary']};
+        --dat-primary-dark: {PALETTE['primary_dark']};
+        --dat-accent: {PALETTE['accent']};
+        --dat-border: #E3E0D8;
+    }}
+
+    /* Base — force light color scheme so Streamlit widgets stay readable */
+    html, body {{
+        color-scheme: light;
         font-family: "Source Sans Pro", "Segoe UI", sans-serif;
     }}
     .stApp {{
-        background-color: {PALETTE['bg']};
+        background-color: var(--dat-bg);
+        color: var(--dat-text);
     }}
+
+    /* Main + sidebar: every standard text node Streamlit renders */
+    [data-testid="stAppViewContainer"],
+    [data-testid="stSidebarContent"],
+    [data-testid="stMainBlockContainer"] {{
+        color: var(--dat-text);
+    }}
+    [data-testid="stAppViewContainer"] p,
+    [data-testid="stAppViewContainer"] li,
+    [data-testid="stAppViewContainer"] label,
+    [data-testid="stAppViewContainer"] h1,
+    [data-testid="stAppViewContainer"] h2,
+    [data-testid="stAppViewContainer"] h3,
+    [data-testid="stAppViewContainer"] h4,
+    [data-testid="stAppViewContainer"] h5,
+    [data-testid="stAppViewContainer"] h6,
+    [data-testid="stAppViewContainer"] strong,
+    [data-testid="stSidebarContent"] p,
+    [data-testid="stSidebarContent"] label,
+    [data-testid="stSidebarContent"] span,
+    [data-testid="stWidgetLabel"] p,
+    [data-testid="stMarkdownContainer"] p,
+    [data-testid="stMarkdownContainer"] li,
+    [data-testid="stMarkdownContainer"] strong {{
+        color: var(--dat-text) !important;
+        -webkit-text-fill-color: var(--dat-text) !important;
+        opacity: 1 !important;
+    }}
+    [data-testid="stCaptionContainer"] p,
+    [data-testid="stCaptionContainer"] small {{
+        color: var(--dat-text-muted) !important;
+        -webkit-text-fill-color: var(--dat-text-muted) !important;
+        opacity: 1 !important;
+    }}
+
+    /* Widget inputs — selected values, sliders, selects */
+    [data-testid="stSelectbox"] [data-baseweb="select"] > div,
+    [data-testid="stMultiSelect"] [data-baseweb="select"] > div,
+    [data-baseweb="input"] input,
+    [data-baseweb="textarea"] textarea,
+    [data-baseweb="tag"] {{
+        color: var(--dat-text) !important;
+        -webkit-text-fill-color: var(--dat-text) !important;
+    }}
+    div[data-testid="stExpander"] summary,
+    div[data-testid="stExpander"] summary span,
+    div[data-testid="stExpander"] summary p {{
+        color: var(--dat-text) !important;
+        -webkit-text-fill-color: var(--dat-text) !important;
+    }}
+
     .dat-hero {{
         background: linear-gradient(120deg, {PALETTE['primary_dark']} 0%, {PALETTE['primary']} 100%);
         border-radius: 14px;
@@ -85,13 +189,15 @@ st.markdown(
         margin: 0 0 0.3rem 0;
         font-size: 1.9rem;
         font-weight: 700;
-        color: #FFFFFF;
+        color: #FFFFFF !important;
+        -webkit-text-fill-color: #FFFFFF !important;
     }}
     .dat-hero p {{
         margin: 0;
         font-size: 0.95rem;
-        color: #E4F1EE;
-        opacity: 0.92;
+        color: #E4F1EE !important;
+        -webkit-text-fill-color: #E4F1EE !important;
+        opacity: 0.95;
     }}
     .dat-section-title {{
         font-size: 1.05rem;
@@ -103,13 +209,22 @@ st.markdown(
     }}
     .dat-card {{
         background-color: {PALETTE['card']};
-        border: 1px solid #E3E0D8;
+        border: 1px solid var(--dat-border);
         border-radius: 10px;
         padding: 0.85rem 1rem 0.6rem 1rem;
         box-shadow: 0 1px 4px rgba(0,0,0,0.04);
         height: 100%;
     }}
-    .dat-card-icon {{ font-size: 1.3rem; margin-bottom: 2px; }}
+    .dat-card-icon {{ margin-bottom: 4px; }}
+    .dat-icon svg {{ display: block; }}
+    .dat-inline-icon-row {{
+        display: flex; align-items: flex-start; gap: 8px;
+    }}
+    .dat-inline-icon-row p {{
+        margin: 0;
+        color: var(--dat-text-muted) !important;
+        -webkit-text-fill-color: var(--dat-text-muted) !important;
+    }}
     .dat-card-label {{
         color: {PALETTE['muted']};
         font-size: 0.75rem;
@@ -125,65 +240,75 @@ st.markdown(
         line-height: 1.1;
     }}
     .dat-card-sub {{ color: {PALETTE['muted']}; font-size: 0.75rem; }}
-    /* Tabs */
-    .stTabs [data-baseweb="tab-list"] {{
-        gap: 4px;
-        border-bottom: 2px solid #E3E0D8;
+
+    /* Section nav — full-width segmented control with breathing room */
+    div[data-testid="stSegmentedControl"] {{
+        margin: 0.25rem 0 0.35rem 0;
     }}
-    .stTabs [data-baseweb="tab"] {{
-        background-color: transparent;
-        border-radius: 8px 8px 0 0;
-        padding: 0.5rem 1rem;
-        font-weight: 600;
-        color: {PALETTE['muted']};
+    div[data-testid="stSegmentedControl"] [role="radiogroup"] {{
+        flex-wrap: wrap;
+        gap: 0.35rem;
     }}
-    .stTabs [aria-selected="true"] {{
-        background-color: {PALETTE['card']};
-        color: {PALETTE['primary_dark']} !important;
-        border-bottom: 3px solid {PALETTE['accent']};
-    }}
-    /* Metric cards */
+
     div[data-testid="stMetric"] {{
         background-color: {PALETTE['card']};
-        border: 1px solid #E3E0D8;
+        border: 1px solid var(--dat-border);
         border-radius: 10px;
         padding: 0.85rem 1rem 0.6rem 1rem;
         box-shadow: 0 1px 4px rgba(0,0,0,0.04);
     }}
     div[data-testid="stMetricLabel"] {{
-        color: {PALETTE['muted']};
+        color: {PALETTE['muted']} !important;
     }}
-    /* Dataframes */
+    div[data-testid="stMetricValue"] {{
+        color: {PALETTE['text']} !important;
+    }}
+
     div[data-testid="stDataFrame"] {{
-        border: 1px solid #E3E0D8;
+        border: 1px solid var(--dat-border);
         border-radius: 8px;
         overflow: hidden;
     }}
-    /* Buttons */
-    .stButton > button {{
-        background-color: {PALETTE['primary']};
-        color: white;
+
+    /* Buttons — primary vs secondary (Reset, Pull live data, etc.) */
+    .stButton > button[kind="primary"],
+    .stButton > button[kind="primaryFormSubmit"] {{
+        background-color: var(--dat-primary) !important;
+        color: #FFFFFF !important;
+        -webkit-text-fill-color: #FFFFFF !important;
         border-radius: 8px;
-        border: none;
+        border: none !important;
         font-weight: 600;
     }}
-    .stButton > button:hover {{
-        background-color: {PALETTE['primary_dark']};
-        color: white;
+    .stButton > button[kind="primary"]:hover,
+    .stButton > button[kind="primaryFormSubmit"]:hover {{
+        background-color: var(--dat-primary-dark) !important;
+        color: #FFFFFF !important;
     }}
-    /* Sidebar */
+    .stButton > button[kind="secondary"],
+    .stButton > button:not([kind="primary"]):not([kind="primaryFormSubmit"]) {{
+        background-color: #FFFFFF !important;
+        color: var(--dat-primary-dark) !important;
+        -webkit-text-fill-color: var(--dat-primary-dark) !important;
+        border: 1px solid var(--dat-border) !important;
+        border-radius: 8px;
+        font-weight: 600;
+    }}
+
     section[data-testid="stSidebar"] {{
         background-color: #EFEBE0;
     }}
     div[data-testid="stExpander"] {{
         background-color: {PALETTE['card']};
-        border: 1px solid #E3E0D8 !important;
+        border: 1px solid var(--dat-border) !important;
         border-radius: 10px;
         margin-bottom: 10px;
     }}
-    /* Alert boxes */
     div[data-testid="stAlert"] {{
         border-radius: 10px;
+    }}
+    div[data-testid="stAlert"] p {{
+        color: var(--dat-text) !important;
     }}
     </style>
     """,
@@ -204,19 +329,21 @@ def themed(fig: go.Figure, height: int | None = None) -> go.Figure:
     )
     if height:
         fig.update_layout(height=height)
-    fig.update_xaxes(gridcolor="#EAE7DE", zerolinecolor="#EAE7DE")
-    fig.update_yaxes(gridcolor="#EAE7DE", zerolinecolor="#EAE7DE")
+    tick_font = dict(color=PALETTE["text"], size=12)
+    fig.update_xaxes(gridcolor="#EAE7DE", zerolinecolor="#EAE7DE", tickfont=tick_font)
+    fig.update_yaxes(gridcolor="#EAE7DE", zerolinecolor="#EAE7DE", tickfont=tick_font)
     return fig
 
 
 def metric_card_row(cards):
     cols = st.columns(len(cards))
-    for col, (icon, label, value, sub) in zip(cols, cards):
+    for col, (icon_name, label, value, sub) in zip(cols, cards):
+        icon_markup = icon_html(icon_name, size=22, color=PALETTE["primary"]) if icon_name else ""
         with col:
             st.markdown(
                 f"""
                 <div class="dat-card">
-                    <div class="dat-card-icon">{icon}</div>
+                    <div class="dat-card-icon">{icon_markup}</div>
                     <div class="dat-card-label">{label}</div>
                     <div class="dat-card-value">{value}</div>
                     <div class="dat-card-sub">{sub}</div>
@@ -230,12 +357,12 @@ def metric_card_row(cards):
 # Sidebar — data + weight controls
 # ---------------------------------------------------------------------------
 st.sidebar.markdown(
-    """
+    f"""
     <div style="display:flex; align-items:center; gap:8px; margin-bottom:2px;">
-        <span style="font-size:1.5rem;">🌍</span>
+        {icon_html("globe", size=26, color="#0A4F47")}
         <span style="font-size:1.15rem; font-weight:800; color:#0A4F47;">DAT Ubuntu Fairness</span>
     </div>
-    <div style="color:#6B7A75; font-size:0.75rem; margin-bottom:14px;">v1.1.0</div>
+    <div style="color:#4A5854; font-size:0.75rem; margin-bottom:14px;">v1.1.0</div>
     """,
     unsafe_allow_html=True,
 )
@@ -295,7 +422,7 @@ df = _get_data(n_records, int(seed))
 
 with st.sidebar.expander("4. Export & Reporting", expanded=False):
     st.download_button(
-        "⬇ Export dataset (CSV)",
+        "Export dataset (CSV)",
         data=df.drop(columns=["subgroup_tuple"]).to_csv(index=False).encode(),
         file_name="dat_synthetic_dataset.csv", mime="text/csv",
         use_container_width=True,
@@ -312,7 +439,7 @@ with st.sidebar.expander("4. Export & Reporting", expanded=False):
         f"Minimum subgroup size: {min_group_size}",
     ]
     st.download_button(
-        "⬇ Download report (TXT)",
+        "Download report (TXT)",
         data="\n".join(_report_lines).encode(),
         file_name="dat_summary_report.txt", mime="text/plain",
         use_container_width=True,
@@ -324,9 +451,12 @@ with st.sidebar.expander("4. Export & Reporting", expanded=False):
 head_col, reset_col = st.columns([6, 1])
 with head_col:
     st.markdown(
-        """
+        f"""
         <div class="dat-hero">
-            <h1>🌍 From Universalism to Ubuntu</h1>
+            <h1 style="display:flex;align-items:center;gap:10px;margin:0 0 0.3rem 0;">
+                {icon_html("globe", size=30, color="#FFFFFF")}
+                From Universalism to Ubuntu
+            </h1>
             <p>A working reproduction of the Decolonial Appropriate Technology (DAT) framework —
             intersectional fairness for AI/ML in Sub-Saharan Africa. Dube, Mguni &amp; Dube (2025), ICAT 2026.</p>
         </div>
@@ -335,18 +465,26 @@ with head_col:
     )
 with reset_col:
     st.write("")
-    if st.button("↻ Reset", use_container_width=True):
+    if st.button("Reset", use_container_width=True):
         st.cache_data.clear()
         for k in list(st.session_state.keys()):
             del st.session_state[k]
         st.rerun()
 
-tabs = st.tabs([
-    " Data & Context",
-    " Phase I–II: Bias Diagnostics",
-    " Statistical Validation",
-    "Tier 1–3: DAT / MOO Framework",
-])
+section = st.segmented_control(
+    "Workflow section",
+    options=[s["id"] for s in NAV_SECTIONS],
+    format_func=lambda sid: f"{_NAV_BY_ID[sid]['icon']} {_NAV_BY_ID[sid]['label']}",
+    default=NAV_SECTIONS[0]["id"],
+    key="main_section",
+    label_visibility="collapsed",
+    width="stretch",
+)
+if section is None:
+    section = NAV_SECTIONS[0]["id"]
+
+st.caption(_NAV_BY_ID[section]["description"])
+st.divider()
 
 
 @st.cache_data(show_spinner=False)
@@ -362,14 +500,14 @@ def _get_worldbank_cached(countries: tuple, indicators: tuple):
 # ---------------------------------------------------------------------------
 # TAB 1 — Data & Context
 # ---------------------------------------------------------------------------
-with tabs[0]:
+if section == "data":
     positive_rate = df["y_true"].mean()
     metric_card_row([
-        ("🗂️", "Dataset Size", f"{len(df):,}", "Synthetic Records"),
-        ("👥", "Protected Attributes", f"{len(PROTECTED_ATTRIBUTES)}", "Intersectional Groups"),
-        ("📈", "Positive Rate (Overall)", f"{positive_rate:.0%}", "y_true = 1"),
-        ("⚖️", "Fairness Domain", domain.capitalize(), "Domain Preset"),
-        ("🛡️", "Minimum Group Size", f"{min_group_size}", "For Metric Stability"),
+        ("database", "Dataset Size", f"{len(df):,}", "Synthetic Records"),
+        ("users", "Protected Attributes", f"{len(PROTECTED_ATTRIBUTES)}", "Intersectional Groups"),
+        ("chart", "Positive Rate (Overall)", f"{positive_rate:.0%}", "y_true = 1"),
+        ("scale", "Fairness Domain", domain.capitalize(), "Domain Preset"),
+        ("shield", "Minimum Group Size", f"{min_group_size}", "For Metric Stability"),
     ])
     st.write("")
 
@@ -391,7 +529,10 @@ with tabs[0]:
             text=[f"{v:.0%}" for v in prevalence.values],
             color_discrete_sequence=[PALETTE["primary"]],
         )
-        fig.update_traces(textposition="outside")
+        fig.update_traces(
+            textposition="outside",
+            textfont=dict(color=PALETTE["text"], size=12),
+        )
         fig.update_layout(showlegend=False)
         themed(fig, height=300)
         st.plotly_chart(fig, use_container_width=True)
@@ -480,7 +621,7 @@ with tabs[0]:
 # ---------------------------------------------------------------------------
 # TAB 2 — Bias diagnostics
 # ---------------------------------------------------------------------------
-with tabs[1]:
+if section == "diagnostics":
     st.markdown('<div class="dat-section-title">6.0 / 6.1 — Single-attribute fairness metrics</div>', unsafe_allow_html=True)
     st.caption("Comparing the biased baseline model against a classic single-axis fairness fix.")
 
@@ -507,7 +648,6 @@ with tabs[1]:
         "Notice DIR rises above 0.8 for every attribute after the single-axis fix — "
         "this is the paper's **'mirage of neutrality'**: fairness looks solved, "
         "one attribute at a time.",
-        icon="🎭",
     )
 
     st.divider()
@@ -546,8 +686,9 @@ with tabs[1]:
 # ---------------------------------------------------------------------------
 # TAB 3 — Statistical validation
 # ---------------------------------------------------------------------------
-with tabs[2]:
+if section == "statistics":
     st.markdown('<div class="dat-section-title">t-tests: single-attribute vs. intersectional</div>', unsafe_allow_html=True)
+    baseline_single = single_attribute_metrics(df, y_pred_col="y_pred_baseline")
     baseline_inter = intersectional_metrics(
         df, y_pred_col="y_pred_baseline", min_group_size=min_group_size
     )
@@ -567,7 +708,6 @@ with tabs[2]:
             st.success(
                 f"{len(sig)}/3 metrics show a statistically significant gap (p<0.05) between "
                 "single-attribute and intersectional bias levels.",
-                icon="✅",
             )
 
     st.divider()
@@ -619,7 +759,6 @@ with tabs[2]:
             st.warning(
                 f"Compounding gap = {gap:.3f}: being **both** {attr_a} and {attr_b} disadvantaged "
                 f"hurts more than the sum of each penalty alone — non-additive, super-linear harm.",
-                icon="⚠️",
             )
         else:
             st.info(f"Compounding gap = {gap:.3f}: no super-additive harm detected for this pair.")
@@ -629,7 +768,7 @@ with tabs[2]:
 # ---------------------------------------------------------------------------
 # TAB 4 — Tier 1-3 DAT / MOO framework
 # ---------------------------------------------------------------------------
-with tabs[3]:
+if section == "moo":
     st.markdown('<div class="dat-section-title">Tier 1 — Sankofa-inspired intersectional mapping</div>', unsafe_allow_html=True)
     st.caption(
         f"{df['subgroup_id'].nunique()} of {2**len(PROTECTED_ATTRIBUTES)} possible intersectional "
@@ -647,7 +786,7 @@ with tabs[3]:
 
     run_col, info_col = st.columns([1, 3])
     with run_col:
-        run_moo = st.button("▶ Run MOO sweep", type="primary", use_container_width=True)
+        run_moo = st.button("Run MOO sweep", type="primary", use_container_width=True)
     with info_col:
         st.caption(
             f"Weights: DIR={weights.w_dir}, EOD={weights.w_eod}, DPD={weights.w_dpd} · "
@@ -717,18 +856,26 @@ with tabs[3]:
         )
         chosen = solutions_df[np.isclose(solutions_df["w0"], w0_choice)].iloc[0]
         metric_card_row([
-            ("🎯", "Accuracy", f"{chosen['accuracy_pct']:.1f}%", f"w0={w0_choice:.2f}"),
-            ("⚖️", "Mean DIR", f"{chosen['mean_DIR']:.2f}", "Disparate Impact Ratio"),
-            ("🛡️", "Utility Retention", f"{chosen['utility_retention_pct']:.1f}%", "vs. baseline"),
-            ("📉", "Fairness Loss", f"{chosen['fairness_loss']:.3f}", "Lower is fairer"),
+            ("target", "Accuracy", f"{chosen['accuracy_pct']:.1f}%", f"w0={w0_choice:.2f}"),
+            ("scale", "Mean DIR", f"{chosen['mean_DIR']:.2f}", "Disparate Impact Ratio"),
+            ("shield", "Utility Retention", f"{chosen['utility_retention_pct']:.1f}%", "vs. baseline"),
+            ("trend_down", "Fairness Loss", f"{chosen['fairness_loss']:.3f}", "Lower is fairer"),
         ])
 
         recommended = recommend_solution(pareto_df, utility_floor_pct=float(utility_floor_pct), priority="balanced")
-        st.caption(
-            f"💡 A balanced starting point (≥{utility_floor_pct}% utility retention, lowest fairness loss): "
-            f"**w₀ = {recommended['w0']:.2f}** — accuracy {recommended['accuracy_pct']:.1f}%, "
-            f"mean DIR {recommended['mean_DIR']:.2f}. This is a suggestion to anchor discussion, "
-            "not the final word — that's the governance layer's job, not the optimizer's."
+        st.markdown(
+            f"""
+            <div class="dat-inline-icon-row">
+                {icon_html("bulb", size=18, color=PALETTE["accent"])}
+                <p style="color:{PALETTE['muted']};font-size:0.875rem;">
+                    A balanced starting point (&ge;{utility_floor_pct}% utility retention, lowest fairness loss):
+                    <strong>w&#8320; = {recommended['w0']:.2f}</strong> &mdash; accuracy {recommended['accuracy_pct']:.1f}%,
+                    mean DIR {recommended['mean_DIR']:.2f}. This is a suggestion to anchor discussion,
+                    not the final word &mdash; that&apos;s the governance layer&apos;s job, not the optimizer&apos;s.
+                </p>
+            </div>
+            """,
+            unsafe_allow_html=True,
         )
 
         with st.expander("Full sweep table"):
@@ -741,7 +888,7 @@ with tabs[3]:
                 use_container_width=True,
             )
     else:
-        st.info("Click **Run MOO sweep** above to populate the Pareto frontier.", icon="👆")
+        st.info("Click **Run MOO sweep** above to populate the Pareto frontier.")
 
 st.markdown(
     f"""
