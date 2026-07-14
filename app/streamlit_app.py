@@ -59,10 +59,11 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------------------------
-# Theme — earthy Ubuntu-inspired palette (deep teal + gold), consistent
-# typography and spacing across every tab.
+# Theme — earthy Ubuntu-inspired palette (deep teal + gold) for light mode,
+# and an all-teal/green palette for dark mode. Consistent typography and
+# spacing across every tab in both modes.
 # ---------------------------------------------------------------------------
-PALETTE = {
+LIGHT_PALETTE = {
     "primary": "#0F6E63",      # deep teal
     "primary_dark": "#0A4F47",
     "accent": "#D98E2E",       # warm gold/ochre
@@ -72,7 +73,27 @@ PALETTE = {
     "card": "#FFFFFF",
     "text": "#20302B",
     "muted": "#4A5854",       # WCAG-friendly on #F7F5F0 (was too faint at #6B7A75)
+    "border": "#E3E0D8",
+    "sidebar_bg": "#EFEBE0",
     "colorway": ["#0F6E63", "#D98E2E", "#1E8449", "#C0392B", "#5B84B1", "#8E5572"],
+}
+
+# Dark mode: every accent that was orange/gold or red in light mode is
+# replaced with a complementary shade of green or teal so the whole UI stays
+# within one cool, earthy family instead of introducing warm/red hues.
+DARK_PALETTE = {
+    "primary": "#2BA89A",      # bright teal
+    "primary_dark": "#186B60", # deep teal
+    "accent": "#4CD97B",       # spring green (was gold/ochre)
+    "danger": "#1FB8A6",       # cyan-teal, used for threshold violations (was red)
+    "success": "#33CC66",      # bright green
+    "bg": "#0D1412",           # near-black, teal-tinted background
+    "card": "#141E1B",         # dark card surface
+    "text": "#E8EDEA",
+    "muted": "#8FA69E",
+    "border": "#26302D",
+    "sidebar_bg": "#101715",
+    "colorway": ["#2BA89A", "#4CD97B", "#33CC66", "#1FB8A6", "#5B9DE0", "#8E5572"],
 }
 
 NAV_SECTIONS = (
@@ -100,8 +121,21 @@ NAV_SECTIONS = (
         "icon": ":material/tune:",
         "description": "Tier 1–3 DAT workflow: mapping, optimization sweep, and Pareto governance.",
     },
+    {
+        "id": "monitoring",
+        "label": "Monitoring & Audit",
+        "icon": ":material/fact_check:",
+        "description": "Live PSI drift check against the reference dataset, plus a way-forward audit plan.",
+    },
 )
 _NAV_BY_ID = {section["id"]: section for section in NAV_SECTIONS}
+
+# Dark mode is a simple session_state-backed toggle. We read the value here
+# (before the sidebar widget is instantiated further down) so the CSS below
+# can be built for the right palette on every rerun, while the actual toggle
+# control still renders wherever we place it in the sidebar.
+DARK_MODE = st.session_state.get("dark_mode_toggle", True)
+PALETTE = DARK_PALETTE if DARK_MODE else LIGHT_PALETTE
 
 st.markdown(
     f"""
@@ -114,12 +148,13 @@ st.markdown(
         --dat-primary: {PALETTE['primary']};
         --dat-primary-dark: {PALETTE['primary_dark']};
         --dat-accent: {PALETTE['accent']};
-        --dat-border: #E3E0D8;
+        --dat-border: {PALETTE['border']};
+        --dat-table-bg: {'#000000' if DARK_MODE else PALETTE['card']};
     }}
 
-    /* Base — force light color scheme so Streamlit widgets stay readable */
+    /* Base — match the widget color-scheme to the active mode */
     html, body {{
-        color-scheme: light;
+        color-scheme: {'dark' if DARK_MODE else 'light'};
         font-family: "Source Sans Pro", "Segoe UI", sans-serif;
     }}
     .stApp {{
@@ -165,16 +200,50 @@ st.markdown(
     [data-testid="stSelectbox"] [data-baseweb="select"] > div,
     [data-testid="stMultiSelect"] [data-baseweb="select"] > div,
     [data-baseweb="input"] input,
-    [data-baseweb="textarea"] textarea,
-    [data-baseweb="tag"] {{
+    [data-baseweb="textarea"] textarea {{
         color: var(--dat-text) !important;
         -webkit-text-fill-color: var(--dat-text) !important;
+        background-color: var(--dat-card) !important;
     }}
     div[data-testid="stExpander"] summary,
     div[data-testid="stExpander"] summary span,
     div[data-testid="stExpander"] summary p {{
         color: var(--dat-text) !important;
         -webkit-text-fill-color: var(--dat-text) !important;
+    }}
+
+    /* Multiselect/selectbox tags — Streamlit's default tag color is a warm
+       red/orange; force these onto the teal/green brand color instead. */
+    [data-baseweb="tag"] {{
+        background-color: var(--dat-primary) !important;
+        color: #FFFFFF !important;
+        -webkit-text-fill-color: #FFFFFF !important;
+        border-radius: 6px !important;
+    }}
+    [data-baseweb="tag"] svg {{
+        fill: #FFFFFF !important;
+    }}
+
+    /* Sliders, toggles, checkboxes, progress bars — recolor the active/track
+       state off Streamlit's default red onto the teal/green brand color. */
+    div[data-testid="stSlider"] [role="slider"] {{
+        background-color: var(--dat-primary) !important;
+        border-color: var(--dat-primary) !important;
+    }}
+    div[data-testid="stSlider"] > div > div > div > div {{
+        background-color: var(--dat-primary) !important;
+    }}
+    div[data-testid="stToggle"] label div[data-checked="true"],
+    div[data-testid="stToggle"] [role="switch"][aria-checked="true"] {{
+        background-color: var(--dat-primary) !important;
+        border-color: var(--dat-primary) !important;
+    }}
+    div[data-testid="stCheckbox"] label span[data-checked="true"] {{
+        background-color: var(--dat-primary) !important;
+        border-color: var(--dat-primary) !important;
+    }}
+    .stProgress > div > div > div > div {{
+        background-color: var(--dat-primary) !important;
     }}
 
     .dat-hero {{
@@ -195,6 +264,7 @@ st.markdown(
     .dat-hero p {{
         margin: 0;
         font-size: 0.95rem;
+        font-style: italic;
         color: #E4F1EE !important;
         -webkit-text-fill-color: #E4F1EE !important;
         opacity: 0.95;
@@ -202,7 +272,7 @@ st.markdown(
     .dat-section-title {{
         font-size: 1.05rem;
         font-weight: 700;
-        color: {PALETTE['primary_dark']};
+        color: {PALETTE['primary'] if DARK_MODE else PALETTE['primary_dark']};
         border-left: 4px solid {PALETTE['accent']};
         padding-left: 0.6rem;
         margin: 0.4rem 0 0.8rem 0;
@@ -249,6 +319,18 @@ st.markdown(
         flex-wrap: wrap;
         gap: 0.35rem;
     }}
+    div[data-testid="stSegmentedControl"] label[data-checked="true"],
+    div[data-testid="stSegmentedControl"] [aria-checked="true"],
+    div[data-testid="stSegmentedControl"] label:has(input:checked) {{
+        background-color: #FFFFFF !important;
+        border-color: #FFFFFF !important;
+    }}
+    div[data-testid="stSegmentedControl"] label[data-checked="true"] p,
+    div[data-testid="stSegmentedControl"] [aria-checked="true"] p,
+    div[data-testid="stSegmentedControl"] label:has(input:checked) p {{
+        color: {PALETTE['bg']} !important;
+        -webkit-text-fill-color: {PALETTE['bg']} !important;
+    }}
 
     div[data-testid="stMetric"] {{
         background-color: {PALETTE['card']};
@@ -264,10 +346,24 @@ st.markdown(
         color: {PALETTE['text']} !important;
     }}
 
-    div[data-testid="stDataFrame"] {{
-        border: 1px solid var(--dat-border);
+    /* Table background — forced to pure black in dark mode per design spec.
+       Text and gridlines are forced to white in dark mode so both the words
+       and the cell/row divider lines stay visible against the black.
+       (st.table renders a real HTML table, so plain CSS reliably reaches it —
+       unlike st.dataframe's canvas-drawn grid, which ignores this CSS.) */
+    div[data-testid="stTable"] {{
+        border: 1px solid {'#FFFFFF' if DARK_MODE else PALETTE['border']};
         border-radius: 8px;
         overflow: hidden;
+    }}
+    div[data-testid="stTable"] table {{
+        background-color: var(--dat-table-bg) !important;
+    }}
+    div[data-testid="stTable"] th,
+    div[data-testid="stTable"] td {{
+        background-color: var(--dat-table-bg) !important;
+        color: {'#FFFFFF' if DARK_MODE else PALETTE['text']} !important;
+        border: 1px solid {'#FFFFFF' if DARK_MODE else PALETTE['border']} !important;
     }}
 
     /* Buttons — primary vs secondary (Reset, Pull live data, etc.) */
@@ -287,16 +383,16 @@ st.markdown(
     }}
     .stButton > button[kind="secondary"],
     .stButton > button:not([kind="primary"]):not([kind="primaryFormSubmit"]) {{
-        background-color: #FFFFFF !important;
-        color: var(--dat-primary-dark) !important;
-        -webkit-text-fill-color: var(--dat-primary-dark) !important;
+        background-color: {PALETTE['card']} !important;
+        color: {PALETTE['primary'] if DARK_MODE else PALETTE['primary_dark']} !important;
+        -webkit-text-fill-color: {PALETTE['primary'] if DARK_MODE else PALETTE['primary_dark']} !important;
         border: 1px solid var(--dat-border) !important;
         border-radius: 8px;
         font-weight: 600;
     }}
 
     section[data-testid="stSidebar"] {{
-        background-color: #EFEBE0;
+        background-color: {PALETTE['sidebar_bg']};
     }}
     div[data-testid="stExpander"] {{
         background-color: {PALETTE['card']};
@@ -325,14 +421,93 @@ def themed(fig: go.Figure, height: int | None = None) -> go.Figure:
         paper_bgcolor="rgba(0,0,0,0)",
         margin=dict(l=10, r=10, t=36, b=10),
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
-        hoverlabel=dict(bgcolor="white", font_size=12),
+        hoverlabel=dict(bgcolor=PALETTE["card"], font_size=12, font_color=PALETTE["text"]),
     )
     if height:
         fig.update_layout(height=height)
+    grid_color = PALETTE["border"]
     tick_font = dict(color=PALETTE["text"], size=12)
-    fig.update_xaxes(gridcolor="#EAE7DE", zerolinecolor="#EAE7DE", tickfont=tick_font)
-    fig.update_yaxes(gridcolor="#EAE7DE", zerolinecolor="#EAE7DE", tickfont=tick_font)
+    fig.update_xaxes(gridcolor=grid_color, zerolinecolor=grid_color, tickfont=tick_font)
+    fig.update_yaxes(gridcolor=grid_color, zerolinecolor=grid_color, tickfont=tick_font)
     return fig
+
+
+def styled_table(df_or_styler, dark: bool = DARK_MODE):
+    """Force a pure-black table background (with light text) in dark mode.
+
+    Accepts either a plain DataFrame or an existing pandas Styler (e.g. one
+    that already has .format(...) applied) and returns a Styler so every
+    st.table(...) call in the app can route through this one helper.
+
+    Note: this deliberately pairs with st.table, not st.dataframe. Streamlit's
+    st.dataframe is a canvas-drawn interactive grid (glide-data-grid) whose
+    cell colors come from Streamlit's own theme, not from CSS or pandas
+    Styler properties — that mismatch is exactly why cell text was invisible
+    until a cell was selected. st.table renders a real, static HTML table,
+    so the Styler colors set below are actually what gets painted.
+    """
+    styler = df_or_styler.style if isinstance(df_or_styler, pd.DataFrame) else df_or_styler
+    if dark:
+        styler = styler.set_properties(**{
+            "background-color": "#000000",
+            "color": "#FFFFFF",
+            "border-color": "#FFFFFF",
+        })
+        styler = styler.set_table_styles([
+            {"selector": "th", "props": [
+                ("background-color", "#000000"),
+                ("color", "#FFFFFF"),
+                ("border", "1px solid #FFFFFF"),
+            ]},
+            {"selector": "td", "props": [("border", "1px solid #FFFFFF")]},
+        ], overwrite=False)
+    return styler
+
+
+def _psi_for_column(reference: pd.Series, current: pd.Series, bins: int = 10) -> float:
+    """Population Stability Index for one column between two samples.
+
+    Numeric columns with more than `bins` distinct values are bucketed into
+    quantile bins fit on the reference sample (the same edges are then
+    applied to the current sample). Binary/categorical columns use their raw
+    values as buckets. A small epsilon avoids divide-by-zero / log(0) on
+    buckets that are empty in one sample.
+    """
+    eps = 1e-4
+    if pd.api.types.is_numeric_dtype(reference) and reference.nunique() > bins:
+        edges = np.unique(np.quantile(reference, np.linspace(0, 1, bins + 1)))
+        if len(edges) < 3:
+            ref_counts = reference.value_counts(normalize=True)
+            cur_counts = current.value_counts(normalize=True)
+        else:
+            ref_binned = pd.cut(reference, bins=edges, include_lowest=True)
+            cur_binned = pd.cut(current, bins=edges, include_lowest=True)
+            ref_counts = ref_binned.value_counts(normalize=True, sort=False)
+            cur_counts = cur_binned.value_counts(normalize=True, sort=False)
+    else:
+        ref_counts = reference.value_counts(normalize=True)
+        cur_counts = current.value_counts(normalize=True)
+
+    all_idx = ref_counts.index.union(cur_counts.index)
+    ref_pct = ref_counts.reindex(all_idx, fill_value=0.0) + eps
+    cur_pct = cur_counts.reindex(all_idx, fill_value=0.0) + eps
+    return float(((cur_pct - ref_pct) * np.log(cur_pct / ref_pct)).sum())
+
+
+def psi_status(value: float) -> str:
+    if value < 0.10:
+        return "Stable"
+    if value < 0.25:
+        return "Moderate drift — monitor"
+    return "Significant drift — investigate"
+
+
+def psi_color(value: float) -> str:
+    if value < 0.10:
+        return PALETTE["success"]
+    if value < 0.25:
+        return PALETTE["accent"]
+    return PALETTE["danger"]
 
 
 def metric_card_row(cards):
@@ -359,10 +534,10 @@ def metric_card_row(cards):
 st.sidebar.markdown(
     f"""
     <div style="display:flex; align-items:center; gap:8px; margin-bottom:2px;">
-        {icon_html("globe", size=26, color="#0A4F47")}
-        <span style="font-size:1.15rem; font-weight:800; color:#0A4F47;">DAT Ubuntu Fairness</span>
+        {icon_html("globe", size=26, color=PALETTE['primary'] if DARK_MODE else PALETTE['primary_dark'])}
+        <span style="font-size:1.15rem; font-weight:800; color:{PALETTE['primary'] if DARK_MODE else PALETTE['primary_dark']};">PACT</span>
     </div>
-    <div style="color:#4A5854; font-size:0.75rem; margin-bottom:14px;">v1.1.0</div>
+    <div style="color:{PALETTE['muted']}; font-size:0.75rem; margin-bottom:14px;">v1.1.0</div>
     """,
     unsafe_allow_html=True,
 )
@@ -403,6 +578,13 @@ with st.sidebar.expander("3. Model & Evaluation", expanded=False):
     )
 
 st.sidebar.divider()
+
+DARK_MODE = st.sidebar.toggle("🌙 Dark mode", value=DARK_MODE, key="dark_mode_toggle")
+# Note: if this toggle flips on this run, the CSS/PALETTE built above still
+# reflects the *previous* value — Streamlit reruns the whole script on toggle,
+# so the very next run picks up the change and everything (charts, tables,
+# cards) repaints in the new palette.
+
 st.sidebar.caption(
     "Data note: DHS microdata is gated behind a registered-researcher account, so "
     "this app uses a structurally-equivalent **synthetic** stand-in calibrated to "
@@ -455,10 +637,10 @@ with head_col:
         <div class="dat-hero">
             <h1 style="display:flex;align-items:center;gap:10px;margin:0 0 0.3rem 0;">
                 {icon_html("globe", size=30, color="#FFFFFF")}
-                From Universalism to Ubuntu
+                PACT: Plural Attribute Compounding Test
             </h1>
             <p>A working reproduction of the Decolonial Appropriate Technology (DAT) framework —
-            intersectional fairness for AI/ML in Sub-Saharan Africa. Dube, Mguni &amp; Dube (2025), ICAT 2026.</p>
+            intersectional fairness for AI/ML in Sub-Saharan Africa. Dube, Mguni &amp; Dube (International Conference on Appropriate Technology,2026). </p>
         </div>
         """,
         unsafe_allow_html=True,
@@ -514,7 +696,7 @@ if section == "data":
     col1, col2 = st.columns([3, 2])
     with col1:
         st.markdown('<div class="dat-section-title">Synthetic individual-level dataset</div>', unsafe_allow_html=True)
-        st.dataframe(df.drop(columns=["subgroup_tuple"]).head(20), use_container_width=True)
+        st.table(styled_table(df.drop(columns=["subgroup_tuple"]).head(20)))
         st.caption(f"{len(df):,} records · {len(PROTECTED_ATTRIBUTES)} protected attributes "
                    f"· {df['subgroup_id'].nunique()} intersectional subgroups populated "
                    f"(K = 2^{len(PROTECTED_ATTRIBUTES)} = {2**len(PROTECTED_ATTRIBUTES)} possible)")
@@ -605,7 +787,7 @@ if section == "data":
 
             if not wb_df.empty:
                 pivot = wb_df.pivot(index="country", columns="indicator_name", values="value")
-                st.dataframe(pivot, use_container_width=True)
+                st.table(styled_table(pivot))
                 fig2 = px.bar(
                     wb_df, x="country", y="value", color="indicator_name", barmode="group",
                     labels={"value": "Latest reported value", "country": "", "indicator_name": ""},
@@ -631,18 +813,16 @@ if section == "diagnostics":
     c1, c2 = st.columns(2)
     with c1:
         st.markdown("**Baseline (pre-fairness adjustment)**")
-        st.dataframe(
+        st.table(styled_table(
             baseline_single[["DIR", "DPD", "EOD", "DIR_violation", "EOD_violation"]]
-            .style.format({"DIR": "{:.2f}", "DPD": "{:.2f}", "EOD": "{:.2f}"}),
-            use_container_width=True,
-        )
+            .style.format({"DIR": "{:.2f}", "DPD": "{:.2f}", "EOD": "{:.2f}"})
+        ))
     with c2:
         st.markdown("**After classic single-axis correction**")
-        st.dataframe(
+        st.table(styled_table(
             corrected_single[["DIR", "DPD", "EOD", "DIR_violation", "EOD_violation"]]
-            .style.format({"DIR": "{:.2f}", "DPD": "{:.2f}", "EOD": "{:.2f}"}),
-            use_container_width=True,
-        )
+            .style.format({"DIR": "{:.2f}", "DPD": "{:.2f}", "EOD": "{:.2f}"})
+        ))
 
     st.info(
         "Notice DIR rises above 0.8 for every attribute after the single-axis fix — "
@@ -677,11 +857,10 @@ if section == "diagnostics":
                             yaxis_title="Disparate Impact Ratio", xaxis_title="Intersectional subgroup")
         themed(fig3, height=420)
         st.plotly_chart(fig3, use_container_width=True)
-        st.dataframe(
+        st.table(styled_table(
             show_df[["DIR", "DPD", "EOD", "n_marginalized", "DIR_violation"]]
-            .style.format({"DIR": "{:.2f}", "DPD": "{:.2f}", "EOD": "{:.2f}"}),
-            use_container_width=True,
-        )
+            .style.format({"DIR": "{:.2f}", "DPD": "{:.2f}", "EOD": "{:.2f}"})
+        ))
 
 # ---------------------------------------------------------------------------
 # TAB 3 — Statistical validation
@@ -696,13 +875,12 @@ if section == "statistics":
         st.warning("No intersectional subgroups meet the minimum size threshold — lower it in the sidebar.")
     else:
         ttest_df = paired_ttests(baseline_single, baseline_inter)
-        st.dataframe(
+        st.table(styled_table(
             ttest_df.style.format({
                 "mean_single": "{:.3f}", "mean_intersectional": "{:.3f}",
                 "t_statistic": "{:.2f}", "p_value": "{:.4f}",
-            }),
-            use_container_width=True,
-        )
+            })
+        ))
         sig = ttest_df[ttest_df["p_value"] < 0.05]
         if not sig.empty:
             st.success(
@@ -724,13 +902,11 @@ if section == "statistics":
     c1, c2 = st.columns(2)
     with c1:
         st.markdown("**Main effects**")
-        st.dataframe(main_rows.style.format({"sum_sq": "{:.2f}", "F": "{:.2f}", "PR(>F)": "{:.2e}"}),
-                     use_container_width=True)
+        st.table(styled_table(main_rows.style.format({"sum_sq": "{:.2f}", "F": "{:.2f}", "PR(>F)": "{:.2e}"})))
     with c2:
         st.markdown("**Pairwise interaction effects**")
         sig_interactions = (interaction_rows["PR(>F)"] < 0.05).sum()
-        st.dataframe(interaction_rows.style.format({"sum_sq": "{:.2f}", "F": "{:.2f}", "PR(>F)": "{:.2e}"}),
-                     use_container_width=True)
+        st.table(styled_table(interaction_rows.style.format({"sum_sq": "{:.2f}", "F": "{:.2f}", "PR(>F)": "{:.2e}"})))
         st.caption(f"{sig_interactions}/{len(interaction_rows)} pairwise interactions significant at p<0.05.")
 
     st.divider()
@@ -830,7 +1006,7 @@ if section == "moo":
         fig5.add_trace(go.Scatter(
             x=non_pareto["fairness_loss"], y=non_pareto["accuracy_pct"],
             mode="markers", name="Dominated solutions",
-            marker=dict(color="#C9C4B4", size=9),
+            marker=dict(color=PALETTE["border"], size=9),
             text=[f"w0={w:.2f}" for w in non_pareto["w0"]],
         ))
         fig5.add_trace(go.Scatter(
@@ -879,21 +1055,158 @@ if section == "moo":
         )
 
         with st.expander("Full sweep table"):
-            st.dataframe(
+            st.table(styled_table(
                 pareto_df.style.format({
                     "mean_DIR": "{:.3f}", "mean_DPD": "{:.3f}", "mean_EOD": "{:.3f}",
                     "fairness_loss": "{:.3f}", "accuracy_pct": "{:.2f}",
                     "utility_retention_pct": "{:.1f}",
-                }),
-                use_container_width=True,
-            )
+                })
+            ))
     else:
         st.info("Click **Run MOO sweep** above to populate the Pareto frontier.")
+
+# ---------------------------------------------------------------------------
+# TAB 5 — Monitoring & Audit
+# ---------------------------------------------------------------------------
+if section == "monitoring":
+    st.markdown('<div class="dat-section-title">Population Stability Index (PSI) check</div>', unsafe_allow_html=True)
+    st.caption(
+        "PSI compares the distribution of a feature — or the model's own output — in a "
+        "new/incoming batch against the reference batch the model was built and governed "
+        "on. It's the standard quantitative tripwire for 'has the population drifted "
+        "enough that the fairness weights / w₀ selection I signed off on might no longer "
+        "be valid?' Common thresholds: **< 0.10** stable, **0.10–0.25** moderate drift "
+        "(watch it), **> 0.25** significant drift (re-review)."
+    )
+
+    mon_cols = st.columns([1, 1, 1])
+    with mon_cols[0]:
+        drift_seed = st.number_input(
+            "Comparison batch seed", value=int(seed) + 1, step=1,
+            help="A different seed simulates a new incoming batch — e.g. next month's "
+                 "intake — to compare against the current reference dataset (sidebar seed).",
+        )
+    with mon_cols[1]:
+        drift_n = st.number_input(
+            "Comparison batch size", value=int(n_records), step=250, min_value=200,
+        )
+    with mon_cols[2]:
+        st.write("")
+        run_psi = st.button("Run PSI check", type="primary", use_container_width=True)
+
+    if run_psi:
+        with st.spinner("Generating comparison batch and computing PSI..."):
+            comp_df = generate_dataset(SyntheticDataConfig(n_records=int(drift_n), seed=int(drift_seed)))
+            comp_df = assign_intersectional_subgroups(comp_df, PROTECTED_ATTRIBUTES)
+        st.session_state["psi_comparison_df"] = comp_df
+        st.session_state["psi_comparison_meta"] = {"seed": int(drift_seed), "n": int(drift_n)}
+
+    if "psi_comparison_df" in st.session_state:
+        comp_df = st.session_state["psi_comparison_df"]
+        meta = st.session_state["psi_comparison_meta"]
+        st.success(
+            f"Comparing reference batch (seed={seed}, n={len(df):,}) against comparison "
+            f"batch (seed={meta['seed']}, n={meta['n']:,})."
+        )
+
+        psi_columns = [c for c in PROTECTED_ATTRIBUTES + ["y_true", "y_pred_baseline"]
+                        if c in df.columns and c in comp_df.columns]
+        psi_rows = [
+            {"feature": col, "PSI": _psi_for_column(df[col], comp_df[col]), "status": psi_status(_psi_for_column(df[col], comp_df[col]))}
+            for col in psi_columns
+        ]
+        psi_df = pd.DataFrame(psi_rows).sort_values("PSI", ascending=False)
+
+        metric_card_row([
+            ("shield", "Max PSI", f"{psi_df['PSI'].max():.3f}", "Most-drifted feature"),
+            ("scale", "Mean PSI", f"{psi_df['PSI'].mean():.3f}", "Across monitored features"),
+            ("trend_down", "Flagged Features", f"{(psi_df['PSI'] >= 0.10).sum()}/{len(psi_df)}", "PSI ≥ 0.10"),
+        ])
+        st.write("")
+
+        fig_psi = go.Figure()
+        fig_psi.add_trace(go.Bar(
+            x=psi_df["feature"], y=psi_df["PSI"],
+            marker_color=[psi_color(v) for v in psi_df["PSI"]],
+            text=[f"{v:.3f}" for v in psi_df["PSI"]],
+            textposition="outside",
+        ))
+        fig_psi.add_hline(y=0.10, line_dash="dash", line_color=PALETTE["muted"],
+                            annotation_text="0.10 — moderate drift")
+        fig_psi.add_hline(y=0.25, line_dash="dash", line_color=PALETTE["danger"],
+                            annotation_text="0.25 — significant drift")
+        fig_psi.update_layout(yaxis_title="PSI", xaxis_title="Feature / model output", xaxis_tickangle=-30)
+        themed(fig_psi, height=380)
+        st.plotly_chart(fig_psi, use_container_width=True)
+
+        st.table(styled_table(psi_df.set_index("feature").style.format({"PSI": "{:.3f}"})))
+
+        n_significant = int((psi_df["PSI"] >= 0.25).sum())
+        n_moderate = int(((psi_df["PSI"] >= 0.10) & (psi_df["PSI"] < 0.25)).sum())
+        if n_significant:
+            st.error(
+                f"{n_significant} feature(s) show significant drift (PSI ≥ 0.25) — the w₀ "
+                "selected on the Pareto frontier tab was governed on a population that no "
+                "longer matches incoming data this closely. Treat this as a trigger for "
+                "re-review, not just a number on a dashboard."
+            )
+        elif n_moderate:
+            st.warning(
+                f"{n_moderate} feature(s) show moderate drift (0.10 ≤ PSI < 0.25) — worth a "
+                "closer look next cycle, not yet an automatic re-review trigger."
+            )
+        else:
+            st.info(
+                "No feature shows PSI ≥ 0.10 against the comparison batch — the population "
+                "looks stable relative to the governed reference."
+            )
+    else:
+        st.info("Click **Run PSI check** above to compare the reference dataset against a simulated incoming batch.")
+
+    st.divider()
+    st.markdown('<div class="dat-section-title">Way forward: after the human picks w&#8320;</div>', unsafe_allow_html=True)
+    st.markdown(
+        "Picking a point on the Pareto frontier (Tier 3) is a decision made *at a moment "
+        "in time*, on the reference dataset above — it answers 'what's the right "
+        "trade-off given the population and fairness weights I have today?', not 'is this "
+        "still the right trade-off in six months?'. Turning that one-off selection into an "
+        "ongoing governance practice is the piece most DAT-style frameworks leave as an "
+        "exercise for the implementer. A few concrete suggestions for closing that gap:"
+    )
+    st.markdown(
+        """
+1. **Tie the PSI cadence to the domain preset** — e.g. monthly for the `finance`/`hiring`
+   presets, where eligibility pools and applicant populations shift faster, quarterly for
+   `health`. Check PSI on the protected attributes *and* on `y_pred_baseline` — output
+   drift can show up even when input distributions still look stable.
+2. **Make the 0.10 / 0.25 thresholds above an explicit governance policy, not a
+   suggestion** — e.g. PSI ≥ 0.25 on any protected attribute automatically re-opens the
+   Tier 3 frontier for a fresh w₀ decision, rather than leaving the original selection in
+   place indefinitely by default.
+3. **Re-run the full Tier 1–3 sweep on the new batch when triggered**, and diff the newly
+   recommended w₀ against the currently deployed one — a large jump is itself a signal
+   worth escalating to whoever owns sign-off.
+4. **Track subgroup-level PSI and fairness metrics, not just the aggregate** — a specific
+   intersectional subgroup can drift, or start showing DIR violations, well before the
+   overall population-level PSI crosses 0.10 — especially the smaller subgroups sitting
+   near the `min_group_size` floor.
+5. **Log every governance decision** — reference dataset snapshot/seed, fairness weights,
+   selected w₀, PSI at time of decision, and who signed off — so "why did we choose this
+   trade-off" is answerable in an audit six months later, honoring the paper's own
+   principle that final model selection isn't the optimizer's call.
+6. **Treat a stale World Bank/WDI pull the same way as a stale PSI check** — if the live
+   country indicators on the Data & Context tab haven't been refreshed since the last
+   governance review, that's a second, independent staleness signal worth checking
+   alongside PSI, not a separate concern.
+        """
+    )
+
+
 
 st.markdown(
     f"""
     <div style="text-align:center; color:{PALETTE['muted']}; font-size:0.78rem; margin-top:2rem;">
-        Built for research. Designed for impact. &nbsp;|&nbsp; DAT Ubuntu Fairness © 2026
+        Fairness that compounds —Because algorithmic harm does too. &nbsp;|&nbsp; DAT Fairness Labs © 2026
     </div>
     """,
     unsafe_allow_html=True,
